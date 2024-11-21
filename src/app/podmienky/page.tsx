@@ -1,14 +1,17 @@
+
 // src/app/podmienky/page.tsx
 
+
 import Typography from "@mui/material/Typography";
+import Container from "@mui/material/Container"
 
-export const metadata = { title: `podmienky | zoska-instagram` };
+export const metadata = { title: `Podmienky | ZoskaSnap` };
 
-export default function terms() {
+export default function TermsCondition() {
   
   return (
-
-      <Typography> podmienky </Typography>
-
+        <Container>
+            <Typography> Podmienky pouzivania </Typography>
+        </Container>
   );
 }

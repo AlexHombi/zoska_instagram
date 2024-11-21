@@ -1,14 +1,15 @@
+
 // src/app/pridat/page.tsx
 
 import Typography from "@mui/material/Typography";
 
-export const metadata = { title: `pridat | zoska-instagram` };
+export const metadata = { title: `Pridat | ZoskaSnap` };
 
-export default function Add() {
+export default function AddPost() {
   
   return (
 
-      <Typography> pridat </Typography>
+      <Typography> Pridat </Typography>
 
   );
 }
