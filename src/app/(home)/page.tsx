@@ -15,3 +15,5 @@ export default async function HomePage() {
   // Conditionally render authenticated or non-authenticated home view
   return session ? <AuthHomeView session={session} /> : <NonAuthHomeView />;
 }
+
+
