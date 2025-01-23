@@ -1,21 +1,27 @@
-
 // /src/components/Navbar.tsx
 
 "use client";
 
-import * as React from 'react';
-import { BottomNavigation, BottomNavigationAction, Box, Avatar } from '@mui/material';
-import HomeIcon from '@mui/icons-material/Home';
-import SearchIcon from '@mui/icons-material/Search';
-import AddCircleIcon from '@mui/icons-material/AddCircle';
-import LoginIcon from '@mui/icons-material/Login';
-import AppRegistrationIcon from '@mui/icons-material/AppRegistration';
-import LogoutIcon from '@mui/icons-material/Logout';
-import { useRouter } from 'next/navigation';
+import * as React from "react";
+import {
+  BottomNavigation,
+  BottomNavigationAction,
+  Box,
+  Avatar,
+  IconButton,
+} from "@mui/material";
+import HomeIcon from "@mui/icons-material/Home";
+import SearchIcon from "@mui/icons-material/Search";
+import AddCircleIcon from "@mui/icons-material/AddCircle";
+import LoginIcon from "@mui/icons-material/Login";
+import AppRegistrationIcon from "@mui/icons-material/AppRegistration";
+import LogoutIcon from "@mui/icons-material/Logout";
+import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import DarkModeButton from "@/components/DarkModeButton"; // Assuming DarkModeButton exists and handles theme toggling
 
 export default function Navbar() {
-  const [value, setValue] = React.useState('/');
+  const [value, setValue] = React.useState("/");
   const router = useRouter();
   const { data: session, status } = useSession();
 
@@ -27,9 +33,13 @@ export default function Navbar() {
   // Non-authenticated navigation paths
   const nonAuthPaths = [
     { label: "Domov", value: "/", icon: <HomeIcon /> },
-    { label: "Prispevky", value: "/prispevok", icon: <AddCircleIcon /> },
-    { label: "Registrácia", value: "/auth/registracia", icon: <AppRegistrationIcon /> },
-    { label: "Prihlásenie", value: "/auth/prihlasenie", icon: <LoginIcon /> }
+    { label: "GDPR", value: "/gdpr", icon: <AddCircleIcon /> },
+    {
+      label: "Registrácia",
+      value: "/auth/registracia",
+      icon: <AppRegistrationIcon />,
+    },
+    { label: "Prihlásenie", value: "/auth/prihlasenie", icon: <LoginIcon /> },
   ];
 
   // Authenticated navigation paths
@@ -41,13 +51,13 @@ export default function Navbar() {
       label: "Profil",
       value: "/profil",
       icon: session?.user?.image ? (
-        <Avatar 
-          alt={session?.user?.name || "User"} 
-          src={session?.user?.image || undefined} 
+        <Avatar
+          alt={session?.user?.name || "User"}
+          src={session?.user?.image || undefined}
         />
       ) : (
         <Avatar>{session?.user?.name?.charAt(0) || "U"}</Avatar>
-      )
+      ),
     },
     { label: "Odhlásiť", value: "/auth/odhlasenie", icon: <LogoutIcon /> },
   ];
@@ -56,8 +66,21 @@ export default function Navbar() {
   const navigationPaths = status === "authenticated" ? authPaths : nonAuthPaths;
 
   return (
-    <Box sx={{ width: '100%', position: 'fixed', bottom: 0 }}>
+    <Box
+      sx={{
+        width: "100%",
+        position: "fixed",
+        bottom: 0,
+        display: "flex",
+        alignItems: "center",
+        backgroundColor: "background.paper", // Set background color
+      }}
+    >
       <BottomNavigation
+        sx={{
+          flex: 1,
+          backgroundColor: "white", // Ensure the background color is white
+        }}
         showLabels
         value={value}
         onChange={handleNavigation}
@@ -71,8 +94,9 @@ export default function Navbar() {
           />
         ))}
       </BottomNavigation>
+      <Box sx={{ p: 1, backgroundColor: "white" }}> {/* Set background color here as well */}
+        <DarkModeButton />
+      </Box>
     </Box>
   );
 }
-
-
