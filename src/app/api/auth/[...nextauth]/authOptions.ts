@@ -21,8 +21,20 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async redirect({ url, baseUrl }: { url: string; baseUrl: string }) {
-      // Redirect to home page after sign-in
-      return url || baseUrl; // baseUrl is automatically set from NEXTAUTH_URL in .env
+      console.log("Redirecting to:", url, "Base URL:", baseUrl);
+  
+      // Prevent redirect loops: Only allow internal redirects
+      if (!url.startsWith(baseUrl)) {
+        return baseUrl; // Fallback to home page
+      }
+  
+      // Ensure we are not redirecting back to sign-in
+      if (url.includes("/auth/prihlasenie")) {
+        return baseUrl; // Prevent looping
+      }
+  
+      return url; // Otherwise, proceed with normal redirect
     },
   },
+  
 };
