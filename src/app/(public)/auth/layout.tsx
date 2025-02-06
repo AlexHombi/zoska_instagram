@@ -10,10 +10,10 @@ export default function AuthLayout({
   return (
     <Box
       sx={{
-        minHeight: '100vh', // Ensure it takes up the full viewport height
+        minHeight: '100vh',
         display: 'flex',
-        justifyContent: 'center', // Horizontally center
-        alignItems: 'center', // Vertically center
+        justifyContent: 'center',
+        alignItems: 'center',
       }}
     >
       {children}
