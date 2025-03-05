@@ -1,13 +1,13 @@
-
 // src/app/api/auth/[...nextauth]/authOptions.ts
 
 import { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter"
 import { prisma } from "./prisma"
+import { Adapter } from "next-auth/adapters";
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  adapter: PrismaAdapter(prisma) as Adapter,
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID || "",
@@ -20,21 +20,16 @@ export const authOptions: NextAuthOptions = {
     signOut: '/auth/odhlasenie',
   },
   callbacks: {
-    async redirect({ url, baseUrl }: { url: string; baseUrl: string }) {
-      console.log("Redirecting to:", url, "Base URL:", baseUrl);
-  
-      // Prevent redirect loops: Only allow internal redirects
-      if (!url.startsWith(baseUrl)) {
-        return baseUrl; // Fallback to home page
+    async redirect({ url, baseUrl }) {
+      // After successful sign in, redirect to /prispevok
+      if (url.startsWith(baseUrl)) {
+        if (url.includes("/auth/prihlasenie")) {
+          return `${baseUrl}/prispevok`; // Redirect to posts after login
+        }
+        return url; // Allow other internal URLs
       }
-  
-      // Ensure we are not redirecting back to sign-in
-      if (url.includes("/auth/prihlasenie")) {
-        return baseUrl; // Prevent looping
-      }
-  
-      return url; // Otherwise, proceed with normal redirect
+      // If the url is not from our site, redirect to the posts page
+      return `${baseUrl}/prispevok`;
     },
   },
-  
 };

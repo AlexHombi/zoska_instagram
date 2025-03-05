@@ -3,22 +3,27 @@
 "use server";
 
 // Import Prisma client
-import { prisma } from "@/app/api/auth/[...nextauth]/prisma";
+import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "../api/auth/[...nextauth]/authOptions";
 
 // Fetch all posts
-export const fetchPosts = async () => {
+export async function getPosts() {
   try {
     const posts = await prisma.post.findMany({
-      orderBy: { createdAt: "desc" },
-      include: { user: true }, // Include user who created the post
-    });
-
-    return posts;
+      include: {
+        user: true,
+      },
+      orderBy: {
+        createdAt: 'desc'
+      },
+    })
+    return { success: true, posts }
   } catch (error) {
-    console.error("Error fetching posts:", error);
-    throw new Error("Could not fetch posts");
+    console.error('Failed to fetch posts:', error)
+    return { success: false, error: 'Failed to load posts' }
   }
-};
+}
 
 // Fetch posts by a specific user ID
 export const fetchPostsByUserId = async (userId: string) => {
@@ -36,19 +41,39 @@ export const fetchPostsByUserId = async (userId: string) => {
 };
 
 // Create a new post
-export const createPost = async (userId: string, imageUrl: string, caption?: string) => {
+export async function createPost(formData: FormData) {
   try {
-    const newPost = await prisma.post.create({
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      return { success: false, error: 'You must be logged in to create a post' };
+    }
+
+    const imageUrl = formData.get('imageUrl') as string;
+    const caption = formData.get('caption') as string;
+
+    if (!imageUrl) {
+      return { success: false, error: 'Image URL is required' };
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email }
+    });
+
+    if (!user) {
+      return { success: false, error: 'User not found' };
+    }
+
+    const post = await prisma.post.create({
       data: {
-        userId,
         imageUrl,
         caption,
+        userId: user.id,
       },
     });
 
-    return newPost;
+    return { success: true, post };
   } catch (error) {
-    console.error("Error creating post:", error);
-    throw new Error("Could not create post");
+    console.error('Failed to create post:', error);
+    return { success: false, error: 'Failed to create post' };
   }
-};
+}
