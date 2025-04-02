@@ -2,7 +2,6 @@
 
 "use server";
 
-// Import Prisma client
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../api/auth/[...nextauth]/authOptions";
@@ -12,16 +11,41 @@ export async function getPosts() {
   try {
     const posts = await prisma.post.findMany({
       include: {
-        user: true,
+        user: { select: { name: true } }, // Select only name
+        images: true,                     // Include images relation
+        likes: true,                      // Include likes relation
+        comments: {                       // Include comments relation
+          include: {
+            user: { select: { name: true } }, // Include comment author's name
+          },
+          orderBy: { createdAt: 'asc' },    // Sort comments by creation date
+        },
       },
       orderBy: {
-        createdAt: 'desc'
+        createdAt: 'desc'                 // Sort posts by creation date
       },
-    })
-    return { success: true, posts }
+    });
+
+    // Format posts to match the expected structure
+    const formattedPosts = posts.map(post => ({
+      id: post.id,
+      caption: post.caption,
+      createdAt: post.createdAt.toISOString(),
+      user: post.user,
+      likes: post.likes.length,
+      images: post.images,
+      comments: post.comments.map(comment => ({
+        id: comment.id,
+        content: comment.content,
+        user: comment.user,
+        createdAt: comment.createdAt.toISOString(),
+      })),
+    }));
+
+    return { success: true, posts: formattedPosts };
   } catch (error) {
-    console.error('Failed to fetch posts:', error)
-    return { success: false, error: 'Failed to load posts' }
+    console.error('Failed to fetch posts:', error);
+    return { success: false, error: 'Failed to load posts' };
   }
 }
 
@@ -30,10 +54,37 @@ export const fetchPostsByUserId = async (userId: string) => {
   try {
     const posts = await prisma.post.findMany({
       where: { userId },
+      include: {
+        user: { select: { name: true } }, // Include user info
+        images: true,                     // Include images relation
+        likes: true,                      // Include likes relation
+        comments: {                       // Include comments relation
+          include: {
+            user: { select: { name: true } },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
       orderBy: { createdAt: "desc" },
     });
 
-    return posts;
+    // Format posts consistently with getPosts
+    const formattedPosts = posts.map(post => ({
+      id: post.id,
+      caption: post.caption,
+      createdAt: post.createdAt.toISOString(),
+      user: post.user,
+      likes: post.likes.length,
+      images: post.images,
+      comments: post.comments.map(comment => ({
+        id: comment.id,
+        content: comment.content,
+        user: comment.user,
+        createdAt: comment.createdAt.toISOString(),
+      })),
+    }));
+
+    return formattedPosts;
   } catch (error) {
     console.error("Error fetching posts by userId:", error);
     throw new Error("Could not fetch posts");
@@ -63,15 +114,47 @@ export async function createPost(formData: FormData) {
       return { success: false, error: 'User not found' };
     }
 
+    // Create post with image in PostImage model
     const post = await prisma.post.create({
       data: {
-        imageUrl,
         caption,
         userId: user.id,
+        images: {
+          create: {
+            imageUrl,
+            order: 0, // Default order for single image
+          },
+        },
+      },
+      include: {
+        user: { select: { name: true } },
+        images: true,
+        likes: true,
+        comments: {                       // Include comments (empty initially)
+          include: {
+            user: { select: { name: true } },
+          },
+        },
       },
     });
 
-    return { success: true, post };
+    // Format the response to match other functions
+    const formattedPost = {
+      id: post.id,
+      caption: post.caption,
+      createdAt: post.createdAt.toISOString(),
+      user: post.user,
+      likes: post.likes.length,
+      images: post.images,
+      comments: post.comments.map(comment => ({
+        id: comment.id,
+        content: comment.content,
+        user: comment.user,
+        createdAt: comment.createdAt.toISOString(),
+      })),
+    };
+
+    return { success: true, post: formattedPost };
   } catch (error) {
     console.error('Failed to create post:', error);
     return { success: false, error: 'Failed to create post' };

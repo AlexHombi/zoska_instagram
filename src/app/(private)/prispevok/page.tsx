@@ -1,20 +1,28 @@
 "use client";
 
 import Typography from "@mui/material/Typography";
-import { Grid, Card, CardContent, CardMedia, Box } from "@mui/material";
+import { Grid, Card, CardContent, CardMedia, Box, TextField, Button } from "@mui/material";
 import Link from "next/link";
 import { getPosts } from "@/app/actions/posts";
 import FavoriteIcon from '@mui/icons-material/Favorite';
 import { useState, useEffect } from "react";
 
-// Define the Post type based on your schema
+// Define the Post type with comments
+type Comment = {
+  id: string;
+  content: string;
+  user: { name: string };
+  createdAt: string;
+};
+
 type Post = {
   id: string;
   caption?: string;
   createdAt: string;
   user?: { name: string };
   likes: number;
-  images: { imageUrl: string }[]; // Updated to use PostImage model
+  images: { imageUrl: string }[];
+  comments: Comment[];
 };
 
 export default function PostList() {
@@ -22,68 +30,97 @@ export default function PostList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userLikes, setUserLikes] = useState<Record<string, boolean>>({});
+  const [newComments, setNewComments] = useState<Record<string, string>>({});
 
   useEffect(() => {
     async function fetchPosts() {
       const { success, posts: fetchedPosts, error } = await getPosts();
-
       if (success && fetchedPosts) {
         setPosts(fetchedPosts);
-        
-        // Load liked posts from local storage
         const storedLikes = localStorage.getItem("userLikes");
-        if (storedLikes) {
-          setUserLikes(JSON.parse(storedLikes));
-        }
+        setUserLikes(storedLikes ? JSON.parse(storedLikes) : {});
       } else {
         setError(error || "Error loading posts");
       }
-
       setLoading(false);
     }
-
     fetchPosts();
   }, []);
 
-  // Handle like/unlike action
-  const handleLike = async (postId: string, currentLikes: number) => {
-    const isLiked = userLikes[postId] || false;
-    const updatedLikes = isLiked ? currentLikes - 1 : currentLikes + 1;
+  const handleLike = async (postId: string) => {
+    setUserLikes((prev) => {
+      const updatedLikes = { ...prev, [postId]: !prev[postId] };
+      localStorage.setItem("userLikes", JSON.stringify(updatedLikes));
+      return updatedLikes;
+    });
 
-    // Optimistic UI update
-    setPosts(posts.map(post => 
-      post.id === postId 
-        ? { ...post, likes: updatedLikes } 
-        : post
-    ));
+    setPosts((prevPosts) =>
+      prevPosts.map((post) =>
+        post.id === postId
+          ? { ...post, likes: userLikes[postId] ? post.likes - 1 : post.likes + 1 }
+          : post
+      )
+    );
 
-    // Update local storage
-    const newLikesState = { ...userLikes, [postId]: !isLiked };
-    setUserLikes(newLikesState);
-    localStorage.setItem("userLikes", JSON.stringify(newLikesState));
-
-    // API call to update the backend
     try {
       const response = await fetch(`/api/posts/${postId}/like`, {
-        method: isLiked ? 'DELETE' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: userLikes[postId] ? "DELETE" : "POST",
+        headers: { "Content-Type": "application/json" },
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to update like');
-      }
-    } catch (err) {
-      console.error('Error updating like:', err);
-      
-      // Revert on failure
-      setPosts(posts.map(post => 
-        post.id === postId 
-          ? { ...post, likes: currentLikes }
-          : post
-      ));
+      if (!response.ok) throw new Error("Failed to update like");
 
-      setUserLikes(prevLikes => ({ ...prevLikes, [postId]: isLiked }));
-      localStorage.setItem("userLikes", JSON.stringify({ ...userLikes, [postId]: isLiked }));
+      const data = await response.json();
+      setPosts((prevPosts) =>
+        prevPosts.map((post) =>
+          post.id === postId ? { ...post, likes: data.likes } : post
+        )
+      );
+    } catch (err) {
+      console.error("Error updating like:", err);
+      setUserLikes((prev) => {
+        const revertedLikes = { ...prev, [postId]: !prev[postId] };
+        localStorage.setItem("userLikes", JSON.stringify(revertedLikes));
+        return revertedLikes;
+      });
+      setPosts((prevPosts) =>
+        prevPosts.map((post) =>
+          post.id === postId
+            ? { ...post, likes: userLikes[postId] ? post.likes + 1 : post.likes - 1 }
+            : post
+        )
+      );
+    }
+  };
+
+  const handleCommentChange = (postId: string, value: string) => {
+    setNewComments((prev) => ({ ...prev, [postId]: value }));
+  };
+
+  const handleCommentSubmit = async (postId: string) => {
+    const commentContent = newComments[postId]?.trim();
+    if (!commentContent) return;
+
+    try {
+      const response = await fetch(`/api/posts/${postId}/comment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: commentContent }),
+      });
+
+      if (!response.ok) throw new Error("Failed to add comment");
+
+      const newComment = await response.json();
+      setPosts((prevPosts) =>
+        prevPosts.map((post) =>
+          post.id === postId
+            ? { ...post, comments: [...post.comments, newComment] }
+            : post
+        )
+      );
+      setNewComments((prev) => ({ ...prev, [postId]: "" })); // Clear input
+    } catch (err) {
+      console.error("Error adding comment:", err);
     }
   };
 
@@ -111,85 +148,74 @@ export default function PostList() {
 
   return (
     <Box sx={{ padding: 3 }}>
-      <Grid
-        container
-        direction="column"
-        spacing={3}
-        justifyContent="center"
-        alignItems="center"
-      >
+      <Grid container direction="column" spacing={3} justifyContent="center" alignItems="center">
         {posts.map((post) => {
-          const firstImage = post.images?.[0]?.imageUrl || "/placeholder.jpg"; // Default image if none available
-          const isLiked = userLikes[post.id] || false; // Check if post is liked
+          const firstImage = post.images?.[0]?.imageUrl || "/placeholder.jpg";
+          const isLiked = userLikes[post.id] || false;
 
           return (
-            <Grid
-              item
-              sx={{ width: '100%', maxWidth: '500px' }}
-              key={post.id}
-            >
-              <Link href={`/prispevok/${post.id}`} passHref style={{ textDecoration: 'none' }}>
-                <Card
-                  sx={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    height: 'auto',
-                    maxHeight: '600px',
-                    width: '100%',
-                    margin: 'auto',
-                    cursor: 'pointer',
-                    transition: 'transform 0.3s',
-                    '&:hover': {
-                      transform: 'scale(1.02)',
-                    },
-                  }}
-                >
+            <Grid item sx={{ width: '100%', maxWidth: '500px' }} key={post.id}>
+              <Card
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  height: 'auto',
+                  width: '100%',
+                  margin: 'auto',
+                  transition: 'transform 0.3s',
+                  '&:hover': { transform: 'scale(1.02)' },
+                }}
+              >
+                {/* Only the image is clickable */}
+                <Link href={`/prispevok/${post.id}`} passHref style={{ textDecoration: 'none' }}>
                   <CardMedia
                     component="img"
                     alt={post.caption || "Post Image"}
                     height="200"
                     image={firstImage}
-                    sx={{ objectFit: 'cover' }}
+                    sx={{ objectFit: 'cover', cursor: 'pointer' }}
                   />
-                  <CardContent sx={{ flex: 1, position: 'relative' }}>
-                    <Typography variant="h6" gutterBottom>
-                      {post.user?.name || "Unknown user"}
-                    </Typography>
-                    <Typography variant="body2" color="textSecondary">
-                      {post.caption || "No caption available"}
-                    </Typography>
-                    <Typography variant="caption" color="textSecondary" display="block" sx={{ mt: 1 }}>
-                      {new Date(post.createdAt).toLocaleString('sk-SK')}
-                    </Typography>
-                    {/* Clickable like counter */}
-                    <Box
-                      sx={{
-                        position: 'absolute',
-                        top: 8,
-                        right: 8,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 0.5,
-                        cursor: 'pointer',
-                      }}
-                      onClick={(e) => {
-                        e.preventDefault(); // Prevent navigation on click
-                        handleLike(post.id, post.likes);
-                      }}
-                    >
-                      <FavoriteIcon 
-                        sx={{ 
-                          fontSize: 18, 
-                          color: isLiked ? 'red' : 'grey' 
-                        }} 
-                      />
-                      <Typography variant="caption">
-                        {post.likes}
-                      </Typography>
+                </Link>
+
+                <CardContent sx={{ flex: 1, position: 'relative' }}>
+                  <Typography variant="h6" gutterBottom>
+                    {post.user?.name || "Unknown user"}
+                  </Typography>
+                  <Typography variant="body2" color="textSecondary">
+                    {post.caption || "No caption available"}
+                  </Typography>
+                  <Typography variant="caption" color="textSecondary" display="block" sx={{ mt: 1 }}>
+                    {new Date(post.createdAt).toLocaleString('sk-SK')}
+                  </Typography>
+
+                  {/* Like button - Now does not trigger navigation */}
+                  <Box
+                    sx={{ position: 'absolute', top: 8, right: 8, display: 'flex', alignItems: 'center', gap: 0.5, cursor: 'pointer' }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleLike(post.id);
+                    }}
+                  >
+                    <FavoriteIcon sx={{ fontSize: 18, color: isLiked ? 'red' : 'grey' }} />
+                    <Typography variant="caption">{post.likes || 0}</Typography>
+                  </Box>
+
+                  {/* Comments Section */}
+                  <Box sx={{ mt: 2 }}>
+                    {post.comments.map((comment) => (
+                      <Box key={comment.id} sx={{ mb: 1 }}>
+                        <Typography variant="body2">
+                          <strong>{comment.user.name}</strong>: {comment.content}
+                        </Typography>
+                      </Box>
+                    ))}
+                    <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+                      <TextField size="small" placeholder="Add a comment..." value={newComments[post.id] || ""} onChange={(e) => handleCommentChange(post.id, e.target.value)} sx={{ flex: 1 }} onClick={(e) => e.stopPropagation()} />
+                      <Button variant="contained" size="small" onClick={(e) => { e.stopPropagation(); handleCommentSubmit(post.id); }}>Post</Button>
                     </Box>
-                  </CardContent>
-                </Card>
-              </Link>
+                  </Box>
+                </CardContent>
+              </Card>
             </Grid>
           );
         })}
