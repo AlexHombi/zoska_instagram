@@ -178,9 +178,12 @@ export default function PostList() {
                 </Link>
 
                 <CardContent sx={{ flex: 1, position: 'relative' }}>
-                  <Typography variant="h6" gutterBottom>
+                <Link href={`/profil/${post.user?.name}`} passHref style={{ textDecoration: "none" }}>
+                  <Typography variant="h6" gutterBottom sx={{ cursor: 'pointer', color: 'primary.main', '&:hover': { textDecoration: 'underline' } }}>
                     {post.user?.name || "Unknown user"}
                   </Typography>
+                </Link>
+
                   <Typography variant="body2" color="textSecondary">
                     {post.caption || "No caption available"}
                   </Typography>
